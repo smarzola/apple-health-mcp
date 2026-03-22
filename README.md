@@ -98,46 +98,44 @@ Instead of `--input`, you can set:
 export HEALTH_EXPORT_PATH=~/Downloads/export.zip
 ```
 
-## Local development
+## Development
 
 ```bash
 git clone https://github.com/smarzola/apple-health-mcp
 cd apple-health-mcp
-uv sync
+uv sync                         # install deps + dev tools
+uv run pytest                   # run tests
 uv run apple-health-mcp --input ~/Downloads/export.zip
 ```
 
-### Lint & typecheck
+### Lint, format & typecheck
 
 ```bash
-uv run ruff check src/             # lint
-uv run ruff format --check src/    # format check
-uv run mypy src/                   # typecheck
+uv run ruff check src/ tests/          # lint
+uv run ruff format --check src/ tests/ # format check
+uv run mypy src/                       # typecheck
 ```
 
-To auto-fix lint and formatting issues:
+Auto-fix:
 
 ```bash
-uv run ruff check --fix src/       # auto-fix lint
-uv run ruff format src/            # auto-format
+uv run ruff check --fix src/ tests/    # auto-fix lint
+uv run ruff format src/ tests/         # auto-format
 ```
 
-## Cutting a release
+### Pre-commit hooks
 
 ```bash
-# Tag and push — GitHub Actions publishes to PyPI automatically
-gh release create v0.1.0 --generate-notes
+uv run pre-commit install     # one-time setup
+# Now ruff + mypy run automatically on every commit
 ```
 
-Before the first publish, configure a [Trusted Publisher](https://docs.pypi.org/trusted-publishers/) on PyPI:
+### Cutting a release
 
-1. Go to [pypi.org](https://pypi.org) → your account → Publishing
-2. Add a new pending publisher with:
-   - PyPI project name: `apple-health-mcp`
-   - Owner: `smarzola`
-   - Repository: `apple-health-mcp`
-   - Workflow name: `publish.yml`
-   - Environment name: `pypi`
+```bash
+gh release create v0.2.0 --generate-notes
+# Triggers GitHub Actions → builds → publishes to PyPI → smoke tests
+```
 
 ## License
 
