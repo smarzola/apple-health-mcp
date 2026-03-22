@@ -107,6 +107,21 @@ uv sync
 uv run apple-health-mcp --input ~/Downloads/export.zip
 ```
 
+### Lint & typecheck
+
+```bash
+uv run ruff check src/             # lint
+uv run ruff format --check src/    # format check
+uv run mypy src/                   # typecheck
+```
+
+To auto-fix lint and formatting issues:
+
+```bash
+uv run ruff check --fix src/       # auto-fix lint
+uv run ruff format src/            # auto-format
+```
+
 ## Cutting a release
 
 ```bash

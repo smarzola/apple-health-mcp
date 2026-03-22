@@ -18,6 +18,9 @@ classifiers = [
 ]
 dependencies = ["mcp"]
 
+[dependency-groups]
+dev = ["ruff>=0.11", "mypy>=1.15"]
+
 [project.urls]
 Homepage = "https://github.com/smarzola/apple-health-mcp"
 Repository = "https://github.com/smarzola/apple-health-mcp"
@@ -29,3 +32,31 @@ apple-health-mcp = "apple_health_mcp.server:main"
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+# --- Tool config ---------------------------------------------------------
+
+[tool.ruff]
+target-version = "py311"
+line-length = 99
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "UP",   # pyupgrade
+    "B",    # flake8-bugbear
+    "SIM",  # flake8-simplify
+    "TCH",  # flake8-type-checking
+]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+
+[[tool.mypy.overrides]]
+module = ["mcp.*"]
+ignore_missing_imports = true

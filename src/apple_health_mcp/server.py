@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import os
 import sqlite3
@@ -29,7 +30,7 @@ _PREFIX_STRIPS = (
 def _strip_prefix(value: str) -> str:
     for prefix in _PREFIX_STRIPS:
         if value.startswith(prefix):
-            return value[len(prefix):]
+            return value[len(prefix) :]
     return value
 
 
@@ -70,19 +71,21 @@ def _ingest_xml(xml_path: Path, conn: sqlite3.Connection) -> None:
     batch_size = 10_000
     count = 0
 
-    for event, elem in iterparse(str(xml_path), events=("end",)):
+    for _event, elem in iterparse(str(xml_path), events=("end",)):
         tag = elem.tag
 
         if tag == "Record":
             attrib = elem.attrib
-            record_batch.append((
-                _strip_prefix(attrib.get("type", "")),
-                attrib.get("sourceName", ""),
-                attrib.get("unit", ""),
-                attrib.get("value", ""),
-                attrib.get("startDate", ""),
-                attrib.get("endDate", ""),
-            ))
+            record_batch.append(
+                (
+                    _strip_prefix(attrib.get("type", "")),
+                    attrib.get("sourceName", ""),
+                    attrib.get("unit", ""),
+                    attrib.get("value", ""),
+                    attrib.get("startDate", ""),
+                    attrib.get("endDate", ""),
+                )
+            )
             count += 1
 
         elif tag == "Workout":
@@ -94,15 +97,11 @@ def _ingest_xml(xml_path: Path, conn: sqlite3.Connection) -> None:
             for stat in elem.iter("WorkoutStatistics"):
                 stat_type = stat.attrib.get("type", "")
                 if "EnergyBurned" in stat_type:
-                    try:
+                    with contextlib.suppress(ValueError, TypeError):
                         energy = float(stat.attrib.get("sum", 0))
-                    except (ValueError, TypeError):
-                        pass
                 elif "Distance" in stat_type:
-                    try:
+                    with contextlib.suppress(ValueError, TypeError):
                         distance = float(stat.attrib.get("sum", 0))
-                    except (ValueError, TypeError):
-                        pass
                     distance_unit = stat.attrib.get("unit", "")
 
             # Fallback: some exports put totals directly on the Workout element
@@ -118,31 +117,29 @@ def _ingest_xml(xml_path: Path, conn: sqlite3.Connection) -> None:
                     distance = None
                 distance_unit = attrib.get("totalDistanceUnit", distance_unit)
 
-            workout_batch.append((
-                _strip_prefix(attrib.get("workoutActivityType", "")),
-                attrib.get("sourceName", ""),
-                float(attrib.get("duration", 0)),
-                attrib.get("durationUnit", ""),
-                energy,
-                distance,
-                distance_unit,
-                attrib.get("startDate", ""),
-                attrib.get("endDate", ""),
-            ))
+            workout_batch.append(
+                (
+                    _strip_prefix(attrib.get("workoutActivityType", "")),
+                    attrib.get("sourceName", ""),
+                    float(attrib.get("duration", 0)),
+                    attrib.get("durationUnit", ""),
+                    energy,
+                    distance,
+                    distance_unit,
+                    attrib.get("startDate", ""),
+                    attrib.get("endDate", ""),
+                )
+            )
             count += 1
 
         # Free memory — critical for large files
         elem.clear()
 
         if len(record_batch) >= batch_size:
-            conn.executemany(
-                "INSERT INTO records VALUES (?,?,?,?,?,?)", record_batch
-            )
+            conn.executemany("INSERT INTO records VALUES (?,?,?,?,?,?)", record_batch)
             record_batch.clear()
         if len(workout_batch) >= batch_size:
-            conn.executemany(
-                "INSERT INTO workouts VALUES (?,?,?,?,?,?,?,?,?)", workout_batch
-            )
+            conn.executemany("INSERT INTO workouts VALUES (?,?,?,?,?,?,?,?,?)", workout_batch)
             workout_batch.clear()
 
         if count % 100_000 == 0 and count > 0:
@@ -152,9 +149,7 @@ def _ingest_xml(xml_path: Path, conn: sqlite3.Connection) -> None:
     if record_batch:
         conn.executemany("INSERT INTO records VALUES (?,?,?,?,?,?)", record_batch)
     if workout_batch:
-        conn.executemany(
-            "INSERT INTO workouts VALUES (?,?,?,?,?,?,?,?,?)", workout_batch
-        )
+        conn.executemany("INSERT INTO workouts VALUES (?,?,?,?,?,?,?,?,?)", workout_batch)
     conn.commit()
     print(f"\r  {count:,} elements loaded — done.", file=sys.stderr)
 
@@ -200,8 +195,7 @@ def _build_db(input_path: str) -> sqlite3.Connection:
     conn.row_factory = sqlite3.Row
     _ingest_xml(xml_path, conn)
     row = conn.execute(
-        "SELECT (SELECT count(*) FROM records) AS r, "
-        "(SELECT count(*) FROM workouts) AS w"
+        "SELECT (SELECT count(*) FROM records) AS r, (SELECT count(*) FROM workouts) AS w"
     ).fetchone()
     print(
         f"Ready — {row['r']:,} records, {row['w']:,} workouts in memory.",
@@ -239,7 +233,7 @@ def query(sql: str) -> str:
         cur = _db.execute(stripped)
         columns = [d[0] for d in cur.description]
         rows = cur.fetchall()
-        result = [dict(zip(columns, row)) for row in rows]
+        result = [dict(zip(columns, row, strict=True)) for row in rows]
         return json.dumps(result, default=str)
     except sqlite3.Error as exc:
         return json.dumps({"error": str(exc)})
@@ -250,7 +244,8 @@ def summary(metric: str, period: str = "day") -> str:
     """Aggregate a health metric by day, week, or month.
 
     Args:
-        metric: The record type (e.g. "StepCount", "HeartRate"). Use list_metrics() to see available types.
+        metric: The record type (e.g. "StepCount", "HeartRate").
+            Use list_metrics() to see available types.
         period: One of "day", "week", or "month".
     """
     period = period.lower()
@@ -281,7 +276,7 @@ def summary(metric: str, period: str = "day") -> str:
         rows = cur.fetchall()
         if not rows:
             return json.dumps({"error": f"No records found for metric '{metric}'."})
-        result = [dict(zip(columns, row)) for row in rows]
+        result = [dict(zip(columns, row, strict=True)) for row in rows]
         return json.dumps(result, default=str)
     except sqlite3.Error as exc:
         return json.dumps({"error": str(exc)})
@@ -318,15 +313,12 @@ def main() -> None:
     parser.add_argument(
         "--input",
         default=os.environ.get("HEALTH_EXPORT_PATH"),
-        help="Path to Apple Health export.zip or export.xml "
-        "(or set HEALTH_EXPORT_PATH env var)",
+        help="Path to Apple Health export.zip or export.xml (or set HEALTH_EXPORT_PATH env var)",
     )
     args = parser.parse_args()
 
     if not args.input:
-        parser.error(
-            "Provide --input <path> or set the HEALTH_EXPORT_PATH env var."
-        )
+        parser.error("Provide --input <path> or set the HEALTH_EXPORT_PATH env var.")
 
     _db = _build_db(args.input)
     mcp.run(transport="stdio")
