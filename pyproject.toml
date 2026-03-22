@@ -1,6 +1,6 @@
 [project]
 name = "apple-health-mcp"
-version = "0.1.0"
+version = "0.1.1"
 description = "MCP server that lets LLMs query your Apple Health export via SQL"
 readme = "README.md"
 license = "MIT"
